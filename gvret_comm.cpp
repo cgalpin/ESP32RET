@@ -15,7 +15,7 @@ GVRET_Comm_Handler::GVRET_Comm_Handler()
 
 void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
 {
-    uint32_t busSpeed = 0;
+    uint32_t busSpeed, fdSpeed = 0;
     uint32_t now = micros();
 
     uint8_t temp8;
@@ -171,6 +171,32 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
             state = SETUP_EXT_BUSES;
             step = 0;
             buff[0] = 0xF1;
+            break;
+        case PROTO_SETUP_FD:
+            state = SETUP_FD;
+            step = 0;
+            buff[0] = 0xF1;
+            break;
+        case PROTO_GET_FD:
+            //immediately return data on FD params
+            transmitBuffer[transmitBufferLength++] = 0xF1;
+            transmitBuffer[transmitBufferLength++] = 22;
+            for (int i = 0; i < 2; i++) {
+                if (canBuses[i]->supportsFDMode()) {
+                    transmitBuffer[transmitBufferLength++] = true + ((unsigned char) settings.canSettings[i].fdMode << 4);
+                    transmitBuffer[transmitBufferLength++] = settings.canSettings[i].fdSpeed;
+                    transmitBuffer[transmitBufferLength++] = settings.canSettings[i].fdSpeed >> 8;
+                    transmitBuffer[transmitBufferLength++] = settings.canSettings[i].fdSpeed >> 16;
+                    transmitBuffer[transmitBufferLength++] = settings.canSettings[i].fdSpeed >> 24;
+                } else {
+                    transmitBuffer[transmitBufferLength++] = false + ((unsigned char) false << 4);
+                    transmitBuffer[transmitBufferLength++] = 0;
+                    transmitBuffer[transmitBufferLength++] = 0;
+                    transmitBuffer[transmitBufferLength++] = 0;
+                    transmitBuffer[transmitBufferLength++] = 0;
+                }
+            }
+            state = IDLE;
             break;
         }
         break;
@@ -357,7 +383,89 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
             }
             step++;
             break;
+        case SETUP_FD: //todo: validate checksum
+            switch(step)
+            {
+            case 0:
+                build_int = in_byte;
+                if (build_int > 0) {
+                    settings.canSettings[0].fdMode = 1;
+                } else {
+                    settings.canSettings[0].fdMode = 0;
+                }
+                break;
+            case 1:
+                build_int = in_byte;
+                break;
+            case 2:
+                build_int |= in_byte << 8;
+                break;
+            case 3:
+                build_int |= in_byte << 16;
+                break;
+            case 4:
+                build_int |= in_byte << 24;
+                fdSpeed = build_int & 0xFFFFF;
+                if (fdSpeed > 5000000) fdSpeed = 5000000;
+                settings.canSettings[0].fdSpeed = fdSpeed;
+
+                if (settings.canSettings[0].enabled)
+                {
+                    canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
+                    if (settings.canSettings[0].listenOnly) canBuses[0]->setListenOnlyMode(true);
+                    else canBuses[0]->setListenOnlyMode(false);
+                    canBuses[0]->watchFor();
+                }
+                else canBuses[0]->disable();
+
+                break;
+            case 5:
+                build_int = in_byte;
+                if (SysSettings.numBuses > 1) {
+                    if (build_int > 0) {
+                        settings.canSettings[1].fdMode = 1;
+                    } else {
+                        settings.canSettings[1].fdMode = 0;
+                    }
+                }
+                break;
+            case 6:
+                build_int = in_byte;
+                break;
+            case 7:
+                build_int |= in_byte << 8;
+                break;
+            case 8:
+                build_int |= in_byte << 16;
+                break;
+            case 9:
+                build_int |= in_byte << 24;
+                fdSpeed = build_int & 0xFFFFF;
+                if (fdSpeed > 5000000) fdSpeed = 5000000;
+
+                if (build_int > 0 && SysSettings.numBuses > 1)
+                {
+                    settings.canSettings[1].fdSpeed = fdSpeed;
+                    
+                    if (settings.canSettings[1].enabled)
+                    {
+                        canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
+                        if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
+                        else canBuses[1]->setListenOnlyMode(false);
+                        canBuses[1]->watchFor();
+                    }
+                    else canBuses[1]->disable();
+                }
+
+                state = IDLE;
+                break;
+            }
+            step++;
+            break;
         case GET_CANBUS_PARAMS:
+            // nothing to do
+            break;
+        case GET_FD_PARAMS:
             // nothing to do
             break;
         case GET_DEVICE_INFO:
