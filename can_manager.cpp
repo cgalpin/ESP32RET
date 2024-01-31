@@ -19,36 +19,30 @@ void CANManager::setup()
         if (settings.canSettings[i].enabled)
         {
             canBuses[i]->enable();
-            if ((settings.canSettings[i].fdMode == 0) || !canBuses[i]->supportsFDMode())
+            if ((settings.canSettings[i].fdMode == false) || !canBuses[i]->supportsFDMode())
             {
                 canBuses[i]->begin(settings.canSettings[i].nomSpeed, 255);
                 Serial.printf("Enabled CAN%u with speed %u\n", i, settings.canSettings[i].nomSpeed);
-                if ( (i == 0) && (settings.systemType == 2) )
-                {
-                  digitalWrite(SW_EN, HIGH); //MUST be HIGH to use CAN0 channel
-                  Serial.println("Enabling SWCAN Mode");
-                }
-                if ( (i == 1) && (settings.systemType == 2) )
-                {
-                  digitalWrite(SW_EN, LOW); //MUST be LOW to use CAN1 channel
-                  Serial.println("Enabling CAN1 will force CAN0 off.");
-                }
             }
             else
             {
                 canBuses[i]->beginFD(settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
-                Serial.printf("Enabled CAN1 In FD Mode With Nominal Speed %u and Data Speed %u", 
-                                settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
+                Serial.printf("Enabled CAN%u In FD Mode With Nominal Speed %u and Data Speed %u", 
+                                i, settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
             }
 
-            if (settings.canSettings[i].listenOnly) 
+            if ( (i == 0) && (settings.systemType == 2) )
             {
-                canBuses[i]->setListenOnlyMode(true);
+                digitalWrite(SW_EN, HIGH); //MUST be HIGH to use CAN0 channel
+                Serial.println("Enabling SWCAN Mode");
             }
-            else
+            if ( (i == 1) && (settings.systemType == 2) )
             {
-                canBuses[i]->setListenOnlyMode(false);
+                digitalWrite(SW_EN, LOW); //MUST be LOW to use CAN1 channel
+                Serial.println("Enabling CAN1 will force CAN0 off.");
             }
+
+            canBuses[i]->setListenOnlyMode(settings.canSettings[i].listenOnly);
             canBuses[i]->watchFor();
         } 
         else
@@ -184,7 +178,10 @@ void CANManager::loop()
                 displayFrame(inFD, i);
             }
             toggleRXLED();
+
+            // TODO: shouldn't this be done for CAN-FD (using inFD)?
             if ( (incoming.id > 0x7DF && incoming.id < 0x7F0) || elmEmulator.getMonitorMode() ) elmEmulator.processCANReply(incoming);
+
             wifiLength = wifiGVRET.numAvailableBytes();
             serialLength = serialGVRET.numAvailableBytes();
             maxLength = (wifiLength > serialLength) ? wifiLength:serialLength;

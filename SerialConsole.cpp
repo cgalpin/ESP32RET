@@ -219,8 +219,11 @@ void SerialConsole::handleConfigCmd()
         settings.canSettings[idx].enabled = newValue;
         if (newValue == 1) 
         {
-            //CAN0.enable();
-            canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+            if (settings.canSettings[idx].fdMode) {
+                canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+            } else {
+                canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+            }
             canBuses[idx]->watchFor();
         }
         else canBuses[idx]->disable();
@@ -235,8 +238,12 @@ void SerialConsole::handleConfigCmd()
             settings.canSettings[idx].nomSpeed = newValue;
             if (settings.canSettings[idx].enabled) 
             {
-                if (settings.canSettings[idx].fdMode)
-                    canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+                if (settings.canSettings[idx].fdMode) {
+                    canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+                } else {
+                    canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+                }
+                canBuses[idx]->watchFor();
             }
             writeEEPROM = true;
         } 
@@ -250,10 +257,9 @@ void SerialConsole::handleConfigCmd()
             if (newValue > 499999 && newValue <= 8000000) {
                 Logger::console("Setting CAN%i FD Rate to %i", idx, newValue);
                 settings.canSettings[idx].fdSpeed = newValue;
-                if (settings.canSettings[idx].enabled) 
-                {
-                    if (settings.canSettings[idx].fdMode)
-                        canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+                if (settings.canSettings[idx].enabled && settings.canSettings[idx].fdMode) {
+                    canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+                    canBuses[idx]->watchFor();
                 }
                 writeEEPROM = true;
             } else Logger::console("Invalid baud rate! Enter a value 500000 - 8000000");
@@ -267,10 +273,14 @@ void SerialConsole::handleConfigCmd()
             if (newValue >= 0 && newValue <= 1) {
                 Logger::console("Setting CAN%i FD Mode to %i", idx, newValue);
                 settings.canSettings[idx].fdMode = newValue;
-                    if (settings.canSettings[idx].fdMode)
-                        canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
-                    else
-                        canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+                if (settings.canSettings[idx].fdMode) {
+                    canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+                } else {
+                    canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+                }
+                if ( settings.canSettings[idx].enabled ) {
+                    canBuses[idx]->watchFor();
+                }
                 writeEEPROM = true;
             } else Logger::console("Invalid setting! Enter a value 0 - 1");
         }

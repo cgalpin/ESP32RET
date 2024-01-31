@@ -388,74 +388,124 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
             {
             case 0:
                 build_int = in_byte;
-                if (build_int > 0) {
-                    settings.canSettings[0].fdMode = 1;
-                } else {
-                    settings.canSettings[0].fdMode = 0;
-                }
                 break;
             case 1:
-                build_int = in_byte;
+                build_int |= in_byte << 8;
                 break;
             case 2:
-                build_int |= in_byte << 8;
+                build_int |= in_byte << 16;
                 break;
             case 3:
-                build_int |= in_byte << 16;
-                break;
-            case 4:
                 build_int |= in_byte << 24;
-                fdSpeed = build_int & 0xFFFFF;
-                if (fdSpeed > 5000000) fdSpeed = 5000000;
-                settings.canSettings[0].fdSpeed = fdSpeed;
-
-                if (settings.canSettings[0].enabled)
-                {
-                    canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
-                    if (settings.canSettings[0].listenOnly) canBuses[0]->setListenOnlyMode(true);
-                    else canBuses[0]->setListenOnlyMode(false);
-                    canBuses[0]->watchFor();
+                fdSpeed = build_int & 0xFFFFFF;
+                if (fdSpeed < 500000 || fdSpeed > 8000000) {
+                    fdSpeed = 5000000;
                 }
-                else canBuses[0]->disable();
 
+                if(build_int > 0)
+                {
+                    if(build_int & 0x80000000ul) //signals that FD enabled status is also being passed
+                    {
+                        if(build_int & 0x40000000ul)
+                        {
+                            settings.canSettings[0].fdMode = true;
+                        } else {
+                            settings.canSettings[0].fdMode = false;
+                        }
+                    } else {
+                        // default to non-FD
+                        settings.canSettings[0].fdMode = false;
+                    }
+                    settings.canSettings[0].fdSpeed = fdSpeed;
+
+                    if (settings.canSettings[0].enabled)
+                    {
+                        if ( settings.canSettings[0].fdMode ) {
+                            canBuses[0]->beginFD(settings.canSettings[0].nomSpeed, settings.canSettings[0].fdSpeed);
+                        } else {
+                            canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
+                        }
+
+                        canBuses[0]->setListenOnlyMode(settings.canSettings[0].listenOnly);
+                        canBuses[0]->watchFor();
+                    }
+                } // else no settings to set 
+
+                break;
+            // case 4:
+            //     build_int = in_byte;
+            //     if (SysSettings.numBuses > 1) {
+            //         settings.canSettings[1].fdMode = build_int > 0;
+            //         // if (build_int > 0) {
+            //         //     settings.canSettings[1].fdMode = true;
+            //         // } else {
+            //         //     settings.canSettings[1].fdMode = false;
+            //         // }
+            //     }
+            //     break;
+            case 4:
+                build_int = in_byte;
                 break;
             case 5:
-                build_int = in_byte;
-                if (SysSettings.numBuses > 1) {
-                    if (build_int > 0) {
-                        settings.canSettings[1].fdMode = 1;
-                    } else {
-                        settings.canSettings[1].fdMode = 0;
-                    }
-                }
-                break;
-            case 6:
-                build_int = in_byte;
-                break;
-            case 7:
                 build_int |= in_byte << 8;
                 break;
-            case 8:
+            case 6:
                 build_int |= in_byte << 16;
                 break;
-            case 9:
+            case 7:
                 build_int |= in_byte << 24;
-                fdSpeed = build_int & 0xFFFFF;
-                if (fdSpeed > 5000000) fdSpeed = 5000000;
-
-                if (build_int > 0 && SysSettings.numBuses > 1)
-                {
-                    settings.canSettings[1].fdSpeed = fdSpeed;
-                    
-                    if (settings.canSettings[1].enabled)
-                    {
-                        canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
-                        if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
-                        else canBuses[1]->setListenOnlyMode(false);
-                        canBuses[1]->watchFor();
-                    }
-                    else canBuses[1]->disable();
+                fdSpeed = build_int & 0xFFFFFF;
+                if (fdSpeed < 500000 || fdSpeed > 8000000) {
+                    fdSpeed = 5000000;
                 }
+
+                if(build_int > 0 && SysSettings.numBuses > 1)
+                {
+                    if(build_int & 0x80000000ul) //signals that FD enabled status is also being passed
+                    {
+                        if(build_int & 0x40000000ul)
+                        {
+                            settings.canSettings[1].fdMode = true;
+                        } else 
+                        {
+                            settings.canSettings[1].fdMode = false;
+                        }
+                    } else {
+                        // default to non-FD
+                        settings.canSettings[1].fdMode = false;
+                    }
+                    settings.canSettings[1].fdSpeed = fdSpeed;
+                }
+
+                if (settings.canSettings[1].enabled)
+                {
+                     if ( settings.canSettings[1].fdMode ) {
+                        canBuses[1]->beginFD(settings.canSettings[1].nomSpeed, settings.canSettings[1].fdSpeed);
+                    } else {
+                        canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
+                    }
+
+                    canBuses[1]->setListenOnlyMode(settings.canSettings[1].listenOnly);
+                    canBuses[1]->watchFor();
+                } // else no settings to set 
+
+                // if (build_int > 0 && SysSettings.numBuses > 1)
+                // {
+                //     settings.canSettings[1].fdSpeed = fdSpeed;
+                    
+                //     if (settings.canSettings[1].enabled)
+                //     {
+                //         if ( settings.canSettings[1].fdMode ) {
+                //             canBuses[1]->beginFD(settings.canSettings[1].nomSpeed, settings.canSettings[1].fdSpeed);
+                //         } else {
+                //             canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
+                //         }
+                        
+                //         canBuses[1]->setListenOnlyMode(settings.canSettings[1].listenOnly);
+                //         canBuses[1]->watchFor();
+                //     }
+                //     else canBuses[1]->disable();
+                // }
 
                 state = IDLE;
                 break;
